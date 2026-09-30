@@ -7,7 +7,7 @@ from pytgcalls import PyTgCalls
 
 
 # =========================
-# RAILWAY VARIABLES
+# VARIABLES RAILWAY
 # =========================
 
 API_ID = int(os.environ["API_ID"])
@@ -16,7 +16,7 @@ BOT_TOKEN = os.environ["BOT_TOKEN"]
 
 
 # =========================
-# TELEGRAM BOT
+# TELEGRAM
 # =========================
 
 app = Client(
@@ -30,93 +30,71 @@ calls = PyTgCalls(app)
 
 
 # =========================
-# YOUTUBE DOWNLOADER
+# CARI & DOWNLOAD SOUNDCloud
 # =========================
 
 async def get_song(query):
 
-    if not query.startswith("http"):
-        query = "ytsearch1:" + query
+    # Kalau user memasukkan link SoundCloud,
+    # gunakan link tersebut.
+    if query.startswith("http"):
+        source = query
+    else:
+        source = "scsearch1:" + query
 
-    # Beberapa client dicoba karena YouTube
-    # dapat memblokir salah satu client.
-    clients = [
-        "tv",
-        "web_safari",
-        "android_vr",
-        "web_embedded"
-    ]
+    ydl_opts = {
+        "format": "bestaudio/best",
 
-    last_error = None
+        "outtmpl": "/tmp/%(id)s.%(ext)s",
 
-    for client in clients:
+        "noplaylist": True,
 
-        try:
+        "quiet": True,
 
-            ydl_opts = {
-                "format": "bestaudio/best",
+        "no_warnings": True,
 
-                "outtmpl": "/tmp/%(id)s.%(ext)s",
-
-                "noplaylist": True,
-
-                "quiet": True,
-
-                "no_warnings": True,
-
-                "geo_bypass": True,
-
-                "extractor_args": {
-                    "youtube": {
-                        "player_client": [client]
-                    }
-                },
-
-                "postprocessors": [
-                    {
-                        "key": "FFmpegExtractAudio",
-                        "preferredcodec": "mp3",
-                        "preferredquality": "192"
-                    }
-                ]
+        "postprocessors": [
+            {
+                "key": "FFmpegExtractAudio",
+                "preferredcodec": "mp3",
+                "preferredquality": "192"
             }
+        ]
+    }
 
-            loop = asyncio.get_running_loop()
+    loop = asyncio.get_running_loop()
 
-            def download():
-                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                    info = ydl.extract_info(query, download=True)
+    def download():
 
-                    if "entries" in info:
-                        info = info["entries"][0]
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
 
-                    return ydl.prepare_filename(info)
-
-            file_path = await loop.run_in_executor(
-                None,
-                download
+            info = ydl.extract_info(
+                source,
+                download=True
             )
 
-            # Setelah postprocessor, ekstensi biasanya menjadi mp3
-            base = os.path.splitext(file_path)[0]
-            mp3_file = base + ".mp3"
+            if "entries" in info:
+                info = info["entries"][0]
 
-            if os.path.exists(mp3_file):
-                return mp3_file
+            filename = ydl.prepare_filename(info)
 
-            if os.path.exists(file_path):
-                return file_path
+            return filename
 
-        except Exception as e:
-
-            last_error = str(e)
-
-            continue
-
-    raise Exception(
-        "YouTube menolak semua client yang dicoba.\n\n"
-        + str(last_error)
+    filename = await loop.run_in_executor(
+        None,
+        download
     )
+
+    # Setelah FFmpeg mengubah menjadi MP3
+    mp3_file = os.path.splitext(filename)[0] + ".mp3"
+
+    if os.path.exists(mp3_file):
+        return mp3_file
+
+    if os.path.exists(filename):
+        return filename
+
+    raise Exception("File lagu tidak ditemukan.")
 
 
 # =========================
@@ -127,8 +105,8 @@ async def get_song(query):
 async def start(client, message):
 
     await message.reply_text(
-        "🎵 Music Bot aktif!\n\n"
-        "Gunakan:\n"
+        "🎵 MUSIC BOT AKTIF!\n\n"
+        "Perintah:\n"
         "/play judul lagu\n"
         "/pause\n"
         "/resume\n"
@@ -155,7 +133,7 @@ async def play_music(client, message):
     query = " ".join(message.command[1:])
 
     status = await message.reply_text(
-        "🔎 Mencari lagu..."
+        "🔎 Mencari lagu di SoundCloud..."
     )
 
     try:
@@ -163,7 +141,8 @@ async def play_music(client, message):
         file_path = await get_song(query)
 
         await status.edit_text(
-            "🎵 Memutar lagu..."
+            "🎵 Lagu ditemukan.\n"
+            "▶️ Memulai pemutaran..."
         )
 
         await calls.play(
@@ -252,14 +231,14 @@ async def stop_music(client, message):
     except Exception as e:
 
         await message.reply_text(
-            f"❌ Gagal menghentikan musik:\n{e}"
+            f"❌ Gagal stop:\n{e}"
         )
 
 
 # =========================
-# RUN BOT
+# START BOT
 # =========================
 
-print("🎵 Music Bot sedang dijalankan...")
+print("🎵 Music Bot sedang berjalan...")
 
 calls.run()
