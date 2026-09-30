@@ -54,9 +54,12 @@ user = Client(
 
 # =========================================================
 # PYTGCALLS
+# PENTING:
+# JANGAN buat PyTgCalls di sini.
+# Dibuat di dalam main() agar loop sama.
 # =========================================================
 
-calls = PyTgCalls(user)
+calls = None
 
 
 # =========================================================
@@ -70,24 +73,23 @@ async def get_song(query):
     else:
         source = "scsearch1:" + query
 
+    ffmpeg_path = shutil.which("ffmpeg")
+
+    if not ffmpeg_path:
+        raise Exception("ffmpeg tidak ditemukan di Railway.")
+
     options = {
         "format": "bestaudio/best",
+
         "outtmpl": "/tmp/%(id)s.%(ext)s",
+
         "noplaylist": True,
+
         "quiet": True,
+
         "no_warnings": True,
 
-        # Pastikan file audio bisa diproses dengan FFmpeg
-        "postprocessors": [
-            {
-                "key": "FFmpegExtractAudio",
-                "preferredcodec": "mp3",
-                "preferredquality": "192",
-            }
-        ],
-
-        # Gunakan ffmpeg dari PATH Railway
-        "ffmpeg_location": shutil.which("ffmpeg") or None,
+        "ffmpeg_location": ffmpeg_path,
     }
 
     loop = asyncio.get_running_loop()
@@ -102,16 +104,13 @@ async def get_song(query):
             )
 
             if "entries" in info:
+
+                if not info["entries"]:
+                    raise Exception("Lagu tidak ditemukan.")
+
                 info = info["entries"][0]
 
             filename = ydl.prepare_filename(info)
-
-            # Karena diproses menjadi MP3
-            base, _ = os.path.splitext(filename)
-            mp3_file = base + ".mp3"
-
-            if os.path.exists(mp3_file):
-                return mp3_file
 
             return filename
 
@@ -121,6 +120,7 @@ async def get_song(query):
     )
 
     if not os.path.exists(filename):
+
         raise Exception(
             "File lagu tidak ditemukan setelah download."
         )
@@ -129,7 +129,7 @@ async def get_song(query):
 
 
 # =========================================================
-# START COMMAND
+# START
 # =========================================================
 
 @bot.on_message(filters.command("start"))
@@ -146,11 +146,21 @@ async def start_command(client, message):
 
 
 # =========================================================
-# PLAY COMMAND
+# PLAY
 # =========================================================
 
 @bot.on_message(filters.command("play"))
 async def play_command(client, message):
+
+    global calls
+
+    if calls is None:
+
+        await message.reply_text(
+            "❌ Sistem musik belum siap."
+        )
+
+        return
 
     if len(message.command) < 2:
 
@@ -170,9 +180,9 @@ async def play_command(client, message):
 
     try:
 
-        # -----------------------------------------
+        # =================================================
         # CEK FFMPEG
-        # -----------------------------------------
+        # =================================================
 
         ffmpeg_path = shutil.which("ffmpeg")
         ffprobe_path = shutil.which("ffprobe")
@@ -184,18 +194,20 @@ async def play_command(client, message):
         print("================================")
 
         if not ffmpeg_path:
+
             raise Exception(
                 "ffmpeg tidak ditemukan di Railway."
             )
 
         if not ffprobe_path:
+
             raise Exception(
                 "ffprobe tidak ditemukan di Railway."
             )
 
-        # -----------------------------------------
+        # =================================================
         # DOWNLOAD
-        # -----------------------------------------
+        # =================================================
 
         print("Mencari lagu:", query)
 
@@ -204,20 +216,27 @@ async def play_command(client, message):
         print("File lagu:", file_path)
 
         if not os.path.exists(file_path):
+
             raise Exception(
-                "File hasil download tidak ditemukan."
+                "File lagu tidak ditemukan."
             )
+
+        # =================================================
+        # UPDATE STATUS
+        # =================================================
 
         await status.edit_text(
             "🎵 Lagu ditemukan.\n"
             "🔊 Memulai pemutaran..."
         )
 
-        # -----------------------------------------
+        # =================================================
         # PLAY
-        # -----------------------------------------
+        # =================================================
 
         print("Memulai pemutaran...")
+        print("Chat ID:", message.chat.id)
+        print("File:", file_path)
 
         await calls.play(
             message.chat.id,
@@ -235,6 +254,7 @@ async def play_command(client, message):
 
         print("================================")
         print("ERROR PLAY")
+        print(type(e).__name__)
         print(str(e))
         print("================================")
 
@@ -251,7 +271,12 @@ async def play_command(client, message):
 @bot.on_message(filters.command("pause"))
 async def pause_command(client, message):
 
+    global calls
+
     try:
+
+        if calls is None:
+            raise Exception("PyTgCalls belum aktif.")
 
         await calls.pause(
             message.chat.id
@@ -278,7 +303,12 @@ async def pause_command(client, message):
 @bot.on_message(filters.command("resume"))
 async def resume_command(client, message):
 
+    global calls
+
     try:
+
+        if calls is None:
+            raise Exception("PyTgCalls belum aktif.")
 
         await calls.resume(
             message.chat.id
@@ -305,7 +335,12 @@ async def resume_command(client, message):
 @bot.on_message(filters.command("stop"))
 async def stop_command(client, message):
 
+    global calls
+
     try:
+
+        if calls is None:
+            raise Exception("PyTgCalls belum aktif.")
 
         await calls.leave_call(
             message.chat.id
@@ -331,15 +366,17 @@ async def stop_command(client, message):
 
 async def main():
 
+    global calls
+
     print("================================")
     print("STARTING MUSIC BOT")
     print("================================")
 
     try:
 
-        # -----------------------------------------
+        # =================================================
         # START BOT
-        # -----------------------------------------
+        # =================================================
 
         print("Starting bot account...")
 
@@ -347,9 +384,9 @@ async def main():
 
         print("BOT ACCOUNT AKTIF")
 
-        # -----------------------------------------
-        # START USER ACCOUNT
-        # -----------------------------------------
+        # =================================================
+        # START USER
+        # =================================================
 
         print("Starting user account...")
 
@@ -357,27 +394,46 @@ async def main():
 
         print("USER ACCOUNT AKTIF")
 
-        # -----------------------------------------
+        # =================================================
         # START PYTGCALLS
-        # -----------------------------------------
+        # PENTING:
+        # Dibuat DI SINI agar menggunakan event loop
+        # yang sama dengan seluruh program.
+        # =================================================
 
         print("Starting PyTgCalls...")
+
+        calls = PyTgCalls(user)
 
         await calls.start()
 
         print("PYTGCALLS AKTIF")
 
+        # =================================================
+        # CEK FFMPEG SEKALI LAGI
+        # =================================================
+
+        print("================================")
+        print("SYSTEM CHECK")
+        print("ffmpeg  :", shutil.which("ffmpeg"))
+        print("ffprobe :", shutil.which("ffprobe"))
+        print("================================")
+
+        # =================================================
+        # BOT SIAP
+        # =================================================
+
         print("================================")
         print("MUSIC BOT SIAP")
         print("================================")
 
-        # Bot tetap hidup
         await idle()
 
     except Exception as e:
 
         print("================================")
         print("MAIN ERROR")
+        print(type(e).__name__)
         print(str(e))
         print("================================")
 
@@ -385,20 +441,22 @@ async def main():
 
         print("Stopping services...")
 
-        try:
-            await calls.stop()
-        except Exception:
-            pass
+        if calls is not None:
+
+            try:
+                await calls.stop()
+            except Exception as e:
+                print("CALLS STOP ERROR:", e)
 
         try:
             await user.stop()
-        except Exception:
-            pass
+        except Exception as e:
+            print("USER STOP ERROR:", e)
 
         try:
             await bot.stop()
-        except Exception:
-            pass
+        except Exception as e:
+            print("BOT STOP ERROR:", e)
 
         print("SERVICE BERHENTI")
 
