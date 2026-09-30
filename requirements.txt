@@ -1,3 +1,2 @@
 py-tgcalls[pyrogram]==3.0.0
-tgcrypto
 yt-dlp[default]
