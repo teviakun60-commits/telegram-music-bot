@@ -4,11 +4,12 @@ import yt_dlp
 
 from pyrogram import Client, filters
 from pytgcalls import PyTgCalls
-from pytgcalls.types import MediaStream
+
 
 API_ID = int(os.environ["API_ID"])
 API_HASH = os.environ["API_HASH"]
 BOT_TOKEN = os.environ["BOT_TOKEN"]
+
 
 app = Client(
     "music_bot",
@@ -29,16 +30,24 @@ async def get_song(query):
     }
 
     def download():
-        with yt_dlp.YoutubeDL(options) as ydl:
-            if not query.startswith(("http://", "https://")):
-                query = f"ytsearch1:{query}"
+        search_query = query
 
-            info = ydl.extract_info(query, download=True)
+        if not search_query.startswith(("http://", "https://")):
+            search_query = f"ytsearch1:{search_query}"
+
+        with yt_dlp.YoutubeDL(options) as ydl:
+            info = ydl.extract_info(
+                search_query,
+                download=True
+            )
 
             if "entries" in info:
                 info = info["entries"][0]
 
-            return ydl.prepare_filename(info), info["title"]
+            file_path = ydl.prepare_filename(info)
+            title = info["title"]
+
+            return file_path, title
 
     return await asyncio.to_thread(download)
 
@@ -65,15 +74,75 @@ async def play(client, message):
 
     query = message.text.split(None, 1)[1]
 
-    msg = await message.reply_text("🔎 Mencari lagu...")
+    msg = await message.reply_text(
+        "🔎 Mencari lagu..."
+    )
 
     try:
         file_path, title = await get_song(query)
 
         await msg.edit_text(
-            f"🎵 {title}\n🔊 Memulai pemutaran..."
+            f"🎵 {title}\n"
+            "🔊 Memulai pemutaran..."
         )
 
         await calls.play(
             message.chat.id,
-            Media
+            file_path
+        )
+
+    except Exception as e:
+        await msg.edit_text(
+            f"❌ Gagal memutar lagu.\n\n"
+            f"Error:\n{e}"
+        )
+
+
+@app.on_message(filters.command("pause"))
+async def pause(client, message):
+    try:
+        await calls.pause(message.chat.id)
+
+        await message.reply_text(
+            "⏸️ Musik dijeda."
+        )
+
+    except Exception as e:
+        await message.reply_text(
+            f"❌ Gagal pause:\n{e}"
+        )
+
+
+@app.on_message(filters.command("resume"))
+async def resume(client, message):
+    try:
+        await calls.resume(message.chat.id)
+
+        await message.reply_text(
+            "▶️ Musik dilanjutkan."
+        )
+
+    except Exception as e:
+        await message.reply_text(
+            f"❌ Gagal resume:\n{e}"
+        )
+
+
+@app.on_message(filters.command("stop"))
+async def stop(client, message):
+    try:
+        await calls.leave_call(message.chat.id)
+
+        await message.reply_text(
+            "⏹️ Musik dihentikan."
+        )
+
+    except Exception as e:
+        await message.reply_text(
+            f"❌ Gagal menghentikan musik:\n{e}"
+        )
+
+
+print("🎵 Music Bot aktif...")
+
+calls.run()
