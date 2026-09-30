@@ -12,9 +12,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-RUN which ffmpeg && \
-    which ffprobe && \
-    ffmpeg -version && \
-    ffprobe -version
+RUN which ffmpeg
+RUN which ffprobe
 
 CMD ["python", "bot.py"]
