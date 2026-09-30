@@ -7,7 +7,7 @@ from pytgcalls import PyTgCalls
 
 
 # =========================
-# VARIABLES
+# ENVIRONMENT VARIABLES
 # =========================
 
 API_ID = int(os.environ["API_ID"])
@@ -48,7 +48,7 @@ calls = PyTgCalls(user)
 
 
 # =========================
-# SEARCH / DOWNLOAD SONG
+# DOWNLOAD / SEARCH SONG
 # =========================
 
 async def get_song(query):
@@ -63,7 +63,7 @@ async def get_song(query):
         "outtmpl": "/tmp/%(id)s.%(ext)s",
         "noplaylist": True,
         "quiet": True,
-        "no_warnings": True
+        "no_warnings": True,
     }
 
     loop = asyncio.get_running_loop()
@@ -137,7 +137,10 @@ async def play_command(client, message):
 
     try:
 
-        # Download lagu
+        # =========================
+        # DOWNLOAD
+        # =========================
+
         file_path = await get_song(query)
 
         await status.edit_text(
@@ -145,7 +148,10 @@ async def play_command(client, message):
             "🔊 Menghubungkan ke voice chat..."
         )
 
-        # Play menggunakan USER ACCOUNT
+        # =========================
+        # PLAY
+        # =========================
+
         await calls.play(
             message.chat.id,
             file_path
@@ -246,25 +252,61 @@ async def main():
     print("🤖 STARTING MUSIC BOT")
     print("================================")
 
-    # Start BOT
-    await bot.start()
+    try:
 
-    print("✅ BOT ACCOUNT AKTIF")
+        # =========================
+        # START BOT ACCOUNT
+        # =========================
 
-    # Start PyTgCalls + USER ACCOUNT
-    calls.start()
+        await bot.start()
 
-    print("✅ USER ACCOUNT AKTIF")
-    print("🎵 PYTGCALLS AKTIF")
-    print("================================")
-    print("✅ MUSIC BOT SIAP")
-    print("================================")
+        print("✅ BOT ACCOUNT AKTIF")
 
-    # Keep program running
-    await idle()
+        # =========================
+        # START USER ACCOUNT
+        # =========================
 
-    # Stop bot when process ends
-    await bot.stop()
+        await user.start()
+
+        print("✅ USER ACCOUNT AKTIF")
+
+        # =========================
+        # START PYTGCALLS
+        # =========================
+
+        await calls.start()
+
+        print("✅ PYTGCALLS AKTIF")
+        print("================================")
+        print("🎵 MUSIC BOT SIAP")
+        print("================================")
+
+        # =========================
+        # KEEP ALIVE
+        # =========================
+
+        await idle()
+
+    finally:
+
+        print("🛑 Mematikan service...")
+
+        try:
+            await calls.stop()
+        except Exception:
+            pass
+
+        try:
+            await user.stop()
+        except Exception:
+            pass
+
+        try:
+            await bot.stop()
+        except Exception:
+            pass
+
+        print("✅ Semua service berhenti.")
 
 
 # =========================
@@ -273,3 +315,43 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
+Yang saya ubah
+
+Bagian pentingnya sekarang:
+
+await bot.start()
+await user.start()
+await calls.start()
+
+Jadi urutannya:
+
+Bot → akun user → PyTgCalls → baru "/play"
+
+Itu penting karena "calls" menggunakan akun MTProto "user", dan metode "play()" membutuhkan PyTgCalls yang sudah berjalan. Dokumentasi/contoh PyTgCalls juga menempatkan "start()" sebelum "play()".
+
+⚠️ Satu hal penting
+
+Saya juga mengubah:
+
+calls.start()
+
+menjadi:
+
+await calls.start()
+
+pada versi PyTgCalls yang API-nya async. Source PyTgCalls terbaru mendefinisikan "start()" sebagai coroutine async.
+
+Setelah mengganti "bot.py", Deploy ulang Render, lalu lihat log. Yang kita harapkan muncul:
+
+🤖 STARTING MUSIC BOT
+✅ BOT ACCOUNT AKTIF
+✅ USER ACCOUNT AKTIF
+✅ PYTGCALLS AKTIF
+🎵 MUSIC BOT SIAP
+
+Setelah itu masuk ke voice chat grup, lalu coba:
+
+/play Sheila On 7 - Dan
+
+Kalau setelah ini muncul error baru seperti "NoActiveGroupCall", itu masalah yang berbeda—berarti startup sudah benar tetapi voice chat/grupnya belum aktif. PyTgCalls memang membedakan proses start dengan keberadaan group call.
