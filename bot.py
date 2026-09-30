@@ -2,24 +2,52 @@ import os
 import asyncio
 import yt_dlp
 
-from pyrogram import Client, filters
+from pyrogram import Client, filters, idle
 from pytgcalls import PyTgCalls
+from pytgcalls.types import MediaStream
 
+
+# =========================
+# RAILWAY VARIABLES
+# =========================
 
 API_ID = int(os.environ["API_ID"])
 API_HASH = os.environ["API_HASH"]
 BOT_TOKEN = os.environ["BOT_TOKEN"]
+SESSION_STRING = os.environ["SESSION_STRING"]
 
 
-app = Client(
+# =========================
+# BOT ACCOUNT
+# =========================
+
+bot = Client(
     "music_bot",
     api_id=API_ID,
     api_hash=API_HASH,
     bot_token=BOT_TOKEN
 )
 
-calls = PyTgCalls(app)
 
+# =========================
+# USER ACCOUNT
+# =========================
+
+user = Client(
+    "music_user",
+    api_id=API_ID,
+    api_hash=API_HASH,
+    session_string=SESSION_STRING
+)
+
+
+# PyTgCalls HARUS menggunakan USER ACCOUNT
+calls = PyTgCalls(user)
+
+
+# =========================
+# CARI & DOWNLOAD LAGU
+# =========================
 
 async def get_song(query):
 
@@ -28,7 +56,7 @@ async def get_song(query):
     else:
         source = "scsearch1:" + query
 
-    ydl_opts = {
+    options = {
         "format": "bestaudio/best",
         "outtmpl": "/tmp/%(id)s.%(ext)s",
         "noplaylist": True,
@@ -40,7 +68,7 @@ async def get_song(query):
 
     def download():
 
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        with yt_dlp.YoutubeDL(options) as ydl:
 
             info = ydl.extract_info(
                 source,
@@ -65,11 +93,16 @@ async def get_song(query):
     return filename
 
 
-@app.on_message(filters.command("start"))
-async def start(client, message):
+# =========================
+# START
+# =========================
+
+@bot.on_message(filters.command("start"))
+async def start_command(client, message):
 
     await message.reply_text(
-        "🎵 Music Bot aktif!\n\n"
+        "🎵 MUSIC BOT AKTIF!\n\n"
+        "Perintah:\n\n"
         "/play judul lagu\n"
         "/pause\n"
         "/resume\n"
@@ -77,13 +110,21 @@ async def start(client, message):
     )
 
 
-@app.on_message(filters.command("play"))
-async def play_music(client, message):
+# =========================
+# PLAY
+# =========================
+
+@bot.on_message(filters.command("play"))
+async def play_command(client, message):
 
     if len(message.command) < 2:
+
         await message.reply_text(
-            "❗ Contoh:\n/play Sheila On 7 - Dan"
+            "❗ Masukkan judul lagu.\n\n"
+            "Contoh:\n"
+            "/play Sheila On 7 - Dan"
         )
+
         return
 
     query = " ".join(message.command[1:])
@@ -94,58 +135,143 @@ async def play_music(client, message):
 
     try:
 
+        # Download lagu
         file_path = await get_song(query)
 
         await status.edit_text(
-            "▶️ Memulai pemutaran..."
+            "🎵 Lagu ditemukan.\n"
+            "🔊 Menghubungkan ke voice chat..."
         )
+
+        # =========================
+        # PLAY DENGAN USER ACCOUNT
+        # =========================
 
         await calls.play(
             message.chat.id,
-            file_path
+            MediaStream(
+                file_path
+            )
         )
 
         await status.edit_text(
-            f"▶️ Sedang memutar:\n🎵 {query}"
+            "▶️ Sedang memutar:\n\n"
+            f"🎵 {query}"
         )
 
     except Exception as e:
 
         await status.edit_text(
-            f"❌ Gagal memutar lagu.\n\nError:\n{e}"
+            "❌ Gagal memutar lagu.\n\n"
+            f"Error:\n{e}"
         )
 
 
-@app.on_message(filters.command("pause"))
-async def pause_music(client, message):
+# =========================
+# PAUSE
+# =========================
+
+@bot.on_message(filters.command("pause"))
+async def pause_command(client, message):
 
     try:
-        await calls.pause(message.chat.id)
-        await message.reply_text("⏸️ Lagu dijeda.")
+
+        await calls.pause(
+            message.chat.id
+        )
+
+        await message.reply_text(
+            "⏸️ Lagu dijeda."
+        )
+
     except Exception as e:
-        await message.reply_text(f"❌ Gagal pause:\n{e}")
+
+        await message.reply_text(
+            f"❌ Gagal pause:\n{e}"
+        )
 
 
-@app.on_message(filters.command("resume"))
-async def resume_music(client, message):
+# =========================
+# RESUME
+# =========================
+
+@bot.on_message(filters.command("resume"))
+async def resume_command(client, message):
 
     try:
-        await calls.resume(message.chat.id)
-        await message.reply_text("▶️ Lagu dilanjutkan.")
+
+        await calls.resume(
+            message.chat.id
+        )
+
+        await message.reply_text(
+            "▶️ Lagu dilanjutkan."
+        )
+
     except Exception as e:
-        await message.reply_text(f"❌ Gagal resume:\n{e}")
+
+        await message.reply_text(
+            f"❌ Gagal resume:\n{e}"
+        )
 
 
-@app.on_message(filters.command("stop"))
-async def stop_music(client, message):
+# =========================
+# STOP
+# =========================
+
+@bot.on_message(filters.command("stop"))
+async def stop_command(client, message):
 
     try:
-        await calls.leave_call(message.chat.id)
-        await message.reply_text("⏹️ Musik dihentikan.")
+
+        await calls.leave_call(
+            message.chat.id
+        )
+
+        await message.reply_text(
+            "⏹️ Musik dihentikan."
+        )
+
     except Exception as e:
-        await message.reply_text(f"❌ Gagal stop:\n{e}")
+
+        await message.reply_text(
+            f"❌ Gagal stop:\n{e}"
+        )
 
 
-print("🎵 Music Bot sedang berjalan...")
+# =========================
+# START SYSTEM
+# =========================
 
-calls.run()
+async def main():
+
+    print("================================")
+    print("🤖 Memulai BOT...")
+    print("================================")
+
+    # Jalankan bot
+    await bot.start()
+
+    print("✅ BOT ACCOUNT AKTIF")
+
+    # Jalankan USER ACCOUNT
+    calls.start()
+
+    print("✅ USER ACCOUNT AKTIF")
+    print("🎵 PyTgCalls AKTIF")
+    print("================================")
+    print("✅ MUSIC BOT SIAP")
+    print("================================")
+
+    await idle()
+
+    await bot.stop()
+
+
+# =========================
+# RUN
+# =========================
+
+if __name__ == "__main__":
+
+    asyncio.run(main())
