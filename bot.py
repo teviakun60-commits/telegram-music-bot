@@ -17,7 +17,7 @@ SESSION_STRING = os.environ["SESSION_STRING"]
 
 
 # =========================
-# BOT ACCOUNT
+# BOT
 # =========================
 
 bot = Client(
@@ -48,12 +48,12 @@ calls = PyTgCalls(user)
 
 
 # =========================
-# DOWNLOAD / SEARCH SONG
+# DOWNLOAD LAGU
 # =========================
 
 async def get_song(query):
 
-    if query.startswith("http"):
+    if query.startswith("http://") or query.startswith("https://"):
         source = query
     else:
         source = "scsearch1:" + query
@@ -63,7 +63,7 @@ async def get_song(query):
         "outtmpl": "/tmp/%(id)s.%(ext)s",
         "noplaylist": True,
         "quiet": True,
-        "no_warnings": True,
+        "no_warnings": True
     }
 
     loop = asyncio.get_running_loop()
@@ -96,7 +96,7 @@ async def get_song(query):
 
 
 # =========================
-# START COMMAND
+# START
 # =========================
 
 @bot.on_message(filters.command("start"))
@@ -113,7 +113,7 @@ async def start_command(client, message):
 
 
 # =========================
-# PLAY COMMAND
+# PLAY
 # =========================
 
 @bot.on_message(filters.command("play"))
@@ -124,7 +124,7 @@ async def play_command(client, message):
         await message.reply_text(
             "❗ Masukkan judul lagu.\n\n"
             "Contoh:\n"
-            "/play Sheila On 7 - Dan"
+            "/play Sheila On 7 Dan"
         )
 
         return
@@ -137,20 +137,12 @@ async def play_command(client, message):
 
     try:
 
-        # =========================
-        # DOWNLOAD
-        # =========================
-
         file_path = await get_song(query)
 
         await status.edit_text(
             "🎵 Lagu ditemukan.\n"
-            "🔊 Menghubungkan ke voice chat..."
+            "🔊 Memulai pemutaran..."
         )
-
-        # =========================
-        # PLAY
-        # =========================
 
         await calls.play(
             message.chat.id,
@@ -159,14 +151,14 @@ async def play_command(client, message):
 
         await status.edit_text(
             "▶️ Sedang memutar:\n\n"
-            f"🎵 {query}"
+            "🎵 " + query
         )
 
     except Exception as e:
 
         await status.edit_text(
             "❌ Gagal memutar lagu.\n\n"
-            f"Error:\n{e}"
+            "Error:\n" + str(e)
         )
 
 
@@ -190,7 +182,8 @@ async def pause_command(client, message):
     except Exception as e:
 
         await message.reply_text(
-            f"❌ Gagal pause:\n{e}"
+            "❌ Gagal pause.\n\n"
+            "Error:\n" + str(e)
         )
 
 
@@ -214,7 +207,8 @@ async def resume_command(client, message):
     except Exception as e:
 
         await message.reply_text(
-            f"❌ Gagal resume:\n{e}"
+            "❌ Gagal resume.\n\n"
+            "Error:\n" + str(e)
         )
 
 
@@ -238,7 +232,8 @@ async def stop_command(client, message):
     except Exception as e:
 
         await message.reply_text(
-            f"❌ Gagal stop:\n{e}"
+            "❌ Gagal menghentikan musik.\n\n"
+            "Error:\n" + str(e)
         )
 
 
@@ -249,47 +244,39 @@ async def stop_command(client, message):
 async def main():
 
     print("================================")
-    print("🤖 STARTING MUSIC BOT")
+    print("STARTING MUSIC BOT")
     print("================================")
 
     try:
 
-        # =========================
-        # START BOT ACCOUNT
-        # =========================
-
+        print("Starting bot account...")
         await bot.start()
+        print("BOT ACCOUNT AKTIF")
 
-        print("✅ BOT ACCOUNT AKTIF")
-
-        # =========================
-        # START USER ACCOUNT
-        # =========================
-
+        print("Starting user account...")
         await user.start()
+        print("USER ACCOUNT AKTIF")
 
-        print("✅ USER ACCOUNT AKTIF")
-
-        # =========================
-        # START PYTGCALLS
-        # =========================
-
+        print("Starting PyTgCalls...")
         await calls.start()
+        print("PYTGCALLS AKTIF")
 
-        print("✅ PYTGCALLS AKTIF")
         print("================================")
-        print("🎵 MUSIC BOT SIAP")
+        print("MUSIC BOT SIAP")
         print("================================")
-
-        # =========================
-        # KEEP ALIVE
-        # =========================
 
         await idle()
 
+    except Exception as e:
+
+        print("================================")
+        print("ERROR")
+        print(str(e))
+        print("================================")
+
     finally:
 
-        print("🛑 Mematikan service...")
+        print("Stopping services...")
 
         try:
             await calls.stop()
@@ -306,7 +293,7 @@ async def main():
         except Exception:
             pass
 
-        print("✅ Semua service berhenti.")
+        print("SERVICE BERHENTI")
 
 
 # =========================
@@ -315,43 +302,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-
-Yang saya ubah
-
-Bagian pentingnya sekarang:
-
-await bot.start()
-await user.start()
-await calls.start()
-
-Jadi urutannya:
-
-Bot → akun user → PyTgCalls → baru "/play"
-
-Itu penting karena "calls" menggunakan akun MTProto "user", dan metode "play()" membutuhkan PyTgCalls yang sudah berjalan. Dokumentasi/contoh PyTgCalls juga menempatkan "start()" sebelum "play()".
-
-⚠️ Satu hal penting
-
-Saya juga mengubah:
-
-calls.start()
-
-menjadi:
-
-await calls.start()
-
-pada versi PyTgCalls yang API-nya async. Source PyTgCalls terbaru mendefinisikan "start()" sebagai coroutine async.
-
-Setelah mengganti "bot.py", Deploy ulang Render, lalu lihat log. Yang kita harapkan muncul:
-
-🤖 STARTING MUSIC BOT
-✅ BOT ACCOUNT AKTIF
-✅ USER ACCOUNT AKTIF
-✅ PYTGCALLS AKTIF
-🎵 MUSIC BOT SIAP
-
-Setelah itu masuk ke voice chat grup, lalu coba:
-
-/play Sheila On 7 - Dan
-
-Kalau setelah ini muncul error baru seperti "NoActiveGroupCall", itu masalah yang berbeda—berarti startup sudah benar tetapi voice chat/grupnya belum aktif. PyTgCalls memang membedakan proses start dengan keberadaan group call.
